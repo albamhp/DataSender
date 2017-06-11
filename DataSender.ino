@@ -4,19 +4,20 @@
 
 int bufferpins[] = {2,3,4,5,6,7,8,13};
 int demuxpins[] = {9,10,11,12};
-
+bool sent = false;
 
 class Headers{
   public:
     static const byte TIME_REQUEST=1;
     static const byte TIME_HEADER=2;
     static const byte TIME_SET=3;
+    static const byte DATA=4;
 };
 
 
 void setup() {
   Serial.begin(9600); //Init serial port
-  setSyncProvider( requestSync);  //set function to call when sync required
+  setSyncProvider(requestSync);  //set function to call when sync required
   for (int i=0; i>8 ;i++) {
     pinMode(bufferpins[i], INPUT_PULLUP);
   }
@@ -27,25 +28,21 @@ void setup() {
 
 void loop() {
   if (Serial.available()) {
-    if (timeStatus()!=timeSet) { 
-      processSyncMessage();
-     
-      if (timeStatus()==timeSet) {
-        Serial.write(Headers::TIME_SET);  
+ 
+    processSyncMessage();
+  }
+  if (timeStatus()==timeSet) {
+    for (int i=0; i<16 ;i++) {
+      for (int j=0; j<4 ;j++) {
+        digitalWrite(demuxpins[j], HIGH && (i & (1 << (3 - j))));
       }
-    }
-    else {
-      for (int i=0; i<16 ;i++) {
-        for (int j=0; j<4 ;j++) {
-          digitalWrite(demuxpins[j], HIGH && (i & (1 << (3 - j))));
-        }
-        for (int j=0; j<8 ;j++) {
-          sensorDisplay(getHoleNumber(i,j), digitalRead(bufferpins[j]), digitalRead(bufferpins[j+1]));
-          j++;
-        }
+      for (int j=0; j<8 ;j++) {
+        sensorDisplay(getHoleNumber(i,j), digitalRead(bufferpins[j]), digitalRead(bufferpins[j+1]));
+        j++;
       }
     }
   }
+  
 }
 
 int getSensorNumber(int i, int j) {
@@ -59,6 +56,7 @@ int getHoleNumber(int i, int j) {
 }
 
 void sensorDisplay(int n, int val1, int val2) {
+  Serial.write(Headers::DATA); 
   if (n < 10) Serial.print("0");
   Serial.print(n); //2
   Serial.print((val1 << 1) + val2); // 1
@@ -76,6 +74,9 @@ void processSyncMessage() {
      if( pctime >= DEFAULT_TIME) { // check the integer is a valid time (greater than Jan 1 2013)
        setTime(pctime); // Sync Arduino clock to the time received on the serial port
      }
+    if (timeStatus()==timeSet) {
+      Serial.write(Headers::TIME_SET);  
+    }
   }
 }
 
